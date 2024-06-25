@@ -374,20 +374,42 @@ class RespotRequest:
         while True:
             resp = self.authorized_get_request(
                 API_ME + "tracks",
-                params={"limit": limit, "offset": offset},
+                params={"limit": limit, "offset": offset, "market": "from_token"},
             ).json()
             offset += limit
+            if not resp["items"]:
+                print(f"items is empty: {resp}")
+
             for song in resp["items"]:
+                track = song["track"]
                 songs.append(
                     {
-                        "id": song["track"]["id"],
-                        "name": song["track"]["name"],
-                        "artist": song["track"]["artists"][0]["name"],
+                        "id": track["id"],
+                        "artist_id": track["artists"][0]["id"],
+                        "artist_name": RespotUtils.conv_artist_format(
+                            list(map(lambda a: a["name"], track["artists"]))
+                        ),
+                        "album_artist": track["album"]["artists"][0]["name"],
+                        "album_name": track["album"]["name"],
+                        "audio_name": track["name"],
+                        "image_url": (
+                            track["album"]["images"][0]["url"]
+                            if len(track["album"]["images"]) >= 0
+                            else None
+                        ),
+                        "release_year": track["album"]["release_date"].split("-")[0],
+                        "disc_number": track["disc_number"],
+                        "audio_number": track["track_number"],
+                        "scraped_song_id": track["id"],
+                        "is_playable": track["is_playable"],
+                        "release_date": track["album"]["release_date"],
                     }
                 )
 
             if len(resp["items"]) < limit:
                 break
+
+            time.sleep(0.5)
 
         return songs
 

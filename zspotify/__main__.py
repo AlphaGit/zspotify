@@ -282,6 +282,16 @@ class ZSpotify:
         elif caller == "episode":
             filename = f"{artist_name} - {audio_number}. {audio_name}"
 
+        elif caller == "liked_songs":
+            filename = f"{self.zfill(audio_number)} - {audio_name}"
+            return (
+                RespotUtils.sanitize_data(artist_name)
+                + "/"
+                + RespotUtils.sanitize_data(album_name)
+                + "/"
+                + RespotUtils.sanitize_data(filename)
+            )
+
         else:
             filename = f"{artist_name} - {audio_name}"
 
@@ -290,19 +300,19 @@ class ZSpotify:
 
         return filename
 
-    def download_track(self, track_id, path=None, caller=None):
-        if self.args.skip_downloaded and self.archive.exists(track_id):
-            print(f"Skipping {track_id} - Already Downloaded")
+    def download_track(self, track, path=None, caller=None):
+        if self.args.skip_downloaded and self.archive.exists(track["id"]):
+            print(f"Skipping {track['id']} - Already Downloaded")
             return True
 
-        if caller == "show" or caller == "episode":
-            track = self.respot.request.get_episode_info(track_id)
-        else:
-            track = self.respot.request.get_track_info(track_id)
+        # if caller == "show" or caller == "episode":
+        #     track = self.respot.request.get_episode_info(track_id)
+        # else:
+        #     track = self.respot.request.get_track_info(track_id)
 
-        if track is None:
-            print(f"Skipping {track_id} - Could not get track info")
-            return True
+        # if track is None:
+        #     print(f"Skipping {track_id} - Could not get track info")
+        #     return True
 
         if not track["is_playable"]:
             print(f"Skipping {track['audio_name']} - Not Available")
@@ -333,14 +343,14 @@ class ZSpotify:
                 return True
 
         output_path = self.respot.download(
-            track_id, temp_path, self.args.audio_format, True
+            track["id"], temp_path, self.args.audio_format, True
         )
 
         if output_path == "":
             return
 
         self.archive.add(
-            track_id,
+            track["id"],
             artist=artist_name,
             track_name=audio_name,
             fullpath=output_path,
@@ -497,7 +507,7 @@ class ZSpotify:
         print("Downloading liked songs")
         basepath = self.music_dir / "Liked Songs"
         for song in songs:
-            self.download_track(song["id"], basepath, "liked_songs")
+            self.download_track(song, basepath, "liked_songs")
         print("Finished downloading liked songs")
         return True
 
