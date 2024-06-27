@@ -1,5 +1,6 @@
 import argparse
 import os
+from random import randint
 import sys
 import time
 from getpass import getpass
@@ -176,7 +177,7 @@ class ZSpotify:
             "--skip-downloaded",
             help="Skip already downloaded songs if exist in archive even it is doesn't exist in the filesystem",
             action="store_true",
-            default=False,
+            default=True,
         )
         parser.add_argument(
             "-cf",
@@ -224,7 +225,7 @@ class ZSpotify:
     @staticmethod
     def antiban_wait(seconds=5):
         """Pause between albums for a set number of seconds"""
-        for i in range(seconds)[::-1]:
+        for i in range(seconds + randint(1, 5))[::-1]:
             print(f"\rSleep for {i + 1} second(s)...", end="")
             time.sleep(1)
         print("\n")
@@ -301,9 +302,52 @@ class ZSpotify:
         return filename
 
     def download_track(self, track, path=None, caller=None):
+        audio_name = track.get("audio_name")
+        audio_number = track.get("audio_number")
+        artist_name = track.get("artist_name")
+        album_artist = track.get("album_artist")
+        album_name = track.get("album_name")
+
+        filename = self.generate_filename(
+            caller,
+            audio_name,
+            audio_number,
+            album_artist,
+            album_name,
+        )
+
+        base_path = path or self.music_dir
+        if caller == "show" or caller == "episode":
+            base_path = path or self.episodes_dir
+        temp_path = base_path / (filename + "." + self.args.audio_format)
+        # print(f"Downloading {filename} to {temp_path}, id: {track['id']}")
+
+        # print(f"Skipping: {self.args.skip_downloaded}")
+        # print(f"Exists: {self.archive.exists(track['id'])}")
         if self.args.skip_downloaded and self.archive.exists(track["id"]):
-            print(f"Skipping {track['id']} - Already Downloaded")
-            return True
+            # print(f"Skipping {track['id']} - Already Downloaded")
+
+            try:
+                archive_entry = self.archive.get(track["id"])
+                current_path = archive_entry["fullpath"]
+                if str(temp_path) != current_path:
+                    print(f"Moving {current_path} to {temp_path}")
+                    # Create parent directories if they don't exist
+                    temp_path.parent.mkdir(parents=True, exist_ok=True)
+                    os.rename(current_path, temp_path)
+                    archive_entry["fullpath"] = str(temp_path)
+                    self.archive.save()
+
+                return True
+            except Exception as e:
+                print(f"Error: {e}")
+                print(f"Redownloading {filename}")
+
+        for ext in (".mp3", ".ogg"):
+            would_be_path = base_path / (filename + ext)
+            if self.not_skip_existing and would_be_path.exists():
+                print(f"Skipping {filename + ext} - Already downloaded")
+                return True
 
         # if caller == "show" or caller == "episode":
         #     track = self.respot.request.get_episode_info(track_id)
@@ -318,30 +362,6 @@ class ZSpotify:
             print(f"Skipping {track['audio_name']} - Not Available")
             return True
 
-        audio_name = track.get("audio_name")
-        audio_number = track.get("audio_number")
-        artist_name = track.get("artist_name")
-        album_artist = track.get("album_artist")
-        album_name = track.get("album_name")
-
-        filename = self.generate_filename(
-            caller,
-            audio_name,
-            audio_number,
-            artist_name,
-            album_name,
-        )
-
-        base_path = path or self.music_dir
-        if caller == "show" or caller == "episode":
-            base_path = path or self.episodes_dir
-        temp_path = base_path / (filename + "." + self.args.audio_format)
-
-        for ext in (".mp3", ".ogg"):
-            if self.not_skip_existing and (base_path / (filename + ext)).exists():
-                print(f"Skipping {filename + ext} - Already downloaded")
-                return True
-
         output_path = self.respot.download(
             track["id"], temp_path, self.args.audio_format, True
         )
@@ -351,7 +371,7 @@ class ZSpotify:
 
         self.archive.add(
             track["id"],
-            artist=artist_name,
+            artist=album_artist,
             track_name=audio_name,
             fullpath=output_path,
             audio_type="music",
@@ -370,7 +390,8 @@ class ZSpotify:
             track_id_str=track["scraped_song_id"],
             image_url=track["image_url"],
         )
-        print(f"Finished downloading {filename}")
+        now = time.strftime("%H:%M:%S", time.localtime())
+        print(f"[{now}] Finished downloading {filename}")
 
     def download_playlist(self, playlist_id):
         playlist = self.respot.request.get_playlist_info(playlist_id)

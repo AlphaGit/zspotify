@@ -1,6 +1,7 @@
 from io import BytesIO
 from pathlib import Path
 import json
+from random import randint
 import re
 import requests
 import time
@@ -371,6 +372,14 @@ class RespotRequest:
         offset = 0
         limit = 50
 
+        # load from cache first
+        try:
+            with open("liked_tracks.json", "r") as f:
+                songs = json.load(f)
+            return songs
+        except FileNotFoundError:
+            pass
+
         while True:
             resp = self.authorized_get_request(
                 API_ME + "tracks",
@@ -410,6 +419,9 @@ class RespotRequest:
                 break
 
             time.sleep(0.5)
+
+        with open("liked_tracks.json", "w") as f:
+            json.dump(songs, f, indent=4)
 
         return songs
 
@@ -626,7 +638,9 @@ class RespotTrackHandler:
             downloaded = 0
             fail_count = 0
             audio_bytes = BytesIO()
-            progress_bar = tqdm(total=total_size, unit="B", unit_scale=True)
+            progress_bar = tqdm(
+                desc=filename, total=total_size, unit="B", unit_scale=True
+            )
 
             while downloaded < total_size:
                 remaining = total_size - downloaded
@@ -647,7 +661,9 @@ class RespotTrackHandler:
             progress_bar.close()
 
             # Sleep to avoid ban
-            time.sleep(self.antiban_wait_time)
+            sleep_time = self.antiban_wait_time + randint(1, 5)
+            print(f"Sleeping for {sleep_time} seconds...")
+            time.sleep(sleep_time)
 
             audio_bytes.seek(0)
 
